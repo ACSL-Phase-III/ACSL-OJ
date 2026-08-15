@@ -13,15 +13,16 @@
 
 ```
 verilog-oj/
-├── Makefile            # 根 Makefile：make sim 自动递归到各题
+├── Makefile            # 根 Makefile：头部填 STUID/NAME + make init + 递归分发
+├── make/
+│   └── common.mk        # 统一判分引擎（AM 风格，被每个子 Makefile include）
 ├── judge/
-│   ├── judge.sh          # 单题判分
-│   └── style_check.sh    # 学生代码风格检查（禁止语法过滤）
+│   └── style_check.sh   # 学生代码风格检查（禁止语法过滤）
 ├── problems/<pid>/
-│   ├── Makefile          # 子 Makefile：写死本题目标（sim / style / clean）
+│   ├── Makefile         # 子 Makefile：只声明 PID/MODULE，include 判分引擎
 │   ├── <模块名>.v         # 模板即作答文件（adder4.v 等）：接口 + TODO 空区
 │   └── test/
-│       └── tb.v          # 判分 testbench（判分端专用，不随题目发放）
+│       └── tb.v         # 判分 testbench（判分端专用，不随题目发放）
 └── README.md
 ```
 
@@ -32,15 +33,40 @@ verilog-oj/
 
 ## 判分用法（Makefile 一键）
 
-在根目录下执行：
+第一次使用先填写根 Makefile 头部的 `STUID` / `NAME` 并初始化 trace：
 
 ```bash
-make sim            # 一键判分全部题目（无作答/未过题目会以非零退出）
-make -C problems/p03_adder4 sim    # 只判某一题
+# 编辑 verilog-oj/Makefile 头部：STUID := 你的学号   NAME := 你的姓名
+make init           # 创建 trace/<学号> 分支并打一个 [init] 空提交
+```
+
+之后在根目录执行：
+
+```bash
+make sim            # 递归判分全部题目，并在 trace/<学号> 上追加一次空提交
+make -C problems/p03_adder4 sim    # 只判某一题（同样会留痕一次空提交）
 make style          # 一键风格检查全部题目
-make clean          # 清理全部仿真产物
+make clean          # 清理全部判分产物（build/）
 make help           # 查看用法
 ```
+
+## trace（判分留痕，PA 风格为空提交）
+
+- `make init` 创建 git 分支 `trace/<学号>`；
+- **每次** `make sim` 都会在该分支上创建**一次空提交**（`--allow-empty`，不改任何文件），
+  提交信息即本次判分汇总，形如：
+
+  ```
+  [sim] 2026-08-15 11:00:45 判分汇总（共 5 题）
+    [p03_adder4] AC (512/512 tests)
+    [p04_cmp_eq4] WA (256/256 tests)
+    ...
+  ```
+
+- 检查判分历史（老师端/学生端通用）：`git log trace/<学号> --oneline`，或直接看分支上各提交信息；
+  一个真实做过的作业，其 `trace/<学号>` 分支会按仿真次数留下一串递增的空提交。
+- `make -C problems/<pid> sim` 单独判分某题时也会单独留一次空提交。
+- 未填写 `STUID` 或不在 git 仓库内时：只判分、不留痕。
 
 
 
@@ -67,11 +93,11 @@ make help           # 查看用法
 - `#` 延时；
 - 任何模块/门实例化（启发式模式 `模块名 实例名 (`）。
 
-备注：注释（`//` 与 `/* */`）内的上述字符不影响判罚；风格检查先剥离注释再匹配。`tb.v`
+备注：注释（`//` 与 `/* */`）内的上述字符不影响判罚；风格检查先剥离注释再匹配。
 
 ## testbench 协议（新增题目时遵守，tb 放各题 `test/` 目录）
 
-- 实例化 DUT，用 `integer` 循环穷举测试集；输入变化后 `#1` 稳定再比较；；
+- 实例化 DUT，用 `integer` 循环穷举测试集；输入变化后 `#1` 稳定再比较；
 - 用 `!==` 比较（能抓住 x/z 未驱动），记录错误数，打印首个失配
   `JUDGE-MISMATCH: in=... got=... want=...`；
 - 输出 `JUDGE-COUNT: N` 供判分脚本组装结论；
