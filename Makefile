@@ -1,4 +1,4 @@
-# eelgrass 平台顶层 Makefile
+# ACSL-OJ 平台顶层 Makefile
 #
 # 本文件不含任何语言细节：语言模块是热插拔的，往 langs/ 里放一个带 lang.mk 的目录
 # 就会被自动发现，删掉目录即从平台移除，无需改动本文件或判分核心。
@@ -33,7 +33,7 @@ langs:
 	done
 
 help:
-	@echo "eelgrass —— 多语言本地判分平台（ACSL）"
+	@echo "ACSL-OJ —— 多语言本地判分平台"
 	@echo ""
 	@echo "已装载的语言模块："
 	@$(MAKE) -s langs

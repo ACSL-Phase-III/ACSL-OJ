@@ -1,4 +1,4 @@
-#  多语言本地判分平台
+# ACSL-OJ —— 多语言本地判分平台
 
 太原理工大学 ACSL 实验室所有！！！使用 CC BY-NC 4.0 协议授权开源、转载或再分发需注明出处！
 
@@ -27,7 +27,7 @@ make -C langs/c/problems/p01_gcd sim    # 只判某一题
 ## 目录结构
 
 ```
-eelgrass/
+ACSL-OJ/
 ├── README.md          本文件：平台总览（不含语言细节）
 ├── Makefile           顶层入口：发现 langs/* 并递归分发
 ├── student.mk         学员信息与云端设置（全平台共用，填一次）
