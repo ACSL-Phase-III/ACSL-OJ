@@ -1,1 +1,6 @@
+# 判分产物
+build/
 *.vvp
+
+# 云端 trace 待补推标记（trace_push.sh 失败时生成）
+.trace-pending
