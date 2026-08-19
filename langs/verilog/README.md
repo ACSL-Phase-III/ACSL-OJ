@@ -17,6 +17,8 @@
 
 ## 用法
 
+以下命令在**本目录**（`langs/verilog/`）下敲：
+
 ```bash
 make sim      # 判分本模块全部题目
 make style    # 只做风格检查
@@ -25,7 +27,23 @@ make clean    # 清理判分产物
 make -C problems/p03_adder4 sim    # 只判某一题
 ```
 
-也可从平台根目录 `make sim` 一次判全部语言。
+从别处指过来也一样，把 `-C` 换成完整路径即可：
+
+```bash
+make -C langs/verilog sim                        # 在仓库根目录判本模块
+make -C langs/verilog/problems/p03_adder4 sim    # 在仓库根目录判某一题
+```
+
+另外，平台根目录的 `make sim-langs` 一次判全部语言的题库，`make sim` 则视作答区
+有没有周自动选范围（详见根 [README](../../README.md)）。
+
+本模块没有 `make artifacts` 可编的判分件 —— `iverilog` 必须把 `test/tb.v` 与作答
+文件**一起**编成一个 `vvp`，编译发生在学生机器上，所以 tb 只能以源码发放。
+好在 tb 是现场算期望值的，它泄露的是判据而不是答案表（见
+[`langs/c/AUTHORING.md`](../c/AUTHORING.md) 的「发放边界」一节）。
+
+> 本目录判的是**题库自己**（模板 + 判分资源同在一处，用于出题人自测）。
+> 学生的作业在 [`work/`](../../work/README.md)，那边只有作答文件。
 
 
 ## 工具链
@@ -35,7 +53,15 @@ make -C problems/p03_adder4 sim    # 只判某一题
 ```bash
 # Ubuntu / WSL
 sudo apt install iverilog
+
+# Windows（原生，装完在 C:\iverilog\bin）
+winget install --id Icarus.Verilog --exact
 ```
+
+Windows 原生 `vvp.exe` 输出的是 CRLF 行尾，判分端已统一归一化，不影响判罚。
+但 `make` 本身 Windows 上没有（MSYS2 也不带），所以实际判分建议在 WSL 里跑；
+若在 WSL 中调用 Windows 版 `iverilog.exe`，注意它解析不了 `\\wsl.localhost\...`
+这类路径，仓库需放在 `/mnt/c/...` 下。
 
 可在题目子 Makefile 里覆盖：`IVFLAGS`（默认 `-g2012`）、`TIMEOUT`（默认 10s）、
 `TB`（默认 `test/tb.v`）。
@@ -66,15 +92,7 @@ sudo apt install iverilog
 
 ## 题目清单
 
-| 题号 | 内容 | 测试规模 |
-|---|---|---|
-| p03_adder4 | 四位行波进位加法器（`a`/`b`/`cin` -> `sum`/`cout`） | 512（穷举） |
-| p04_cmp_eq4 | 四位相等比较器 | 256（穷举） |
-| p08_prio_enc8_3 | 8-3 优先编码器（输出最高位 1 的下标，全 0 输出 0） | 256（穷举） |
-| p10_decoder3_8 | 3-8 译码器（`y = 1 << a`，独热码） | 8（穷举） |
-| p13_seg_hex | 十六进制七段译码器（`seg` 位序 abcdefg，a=bit6） | 16（穷举） |
-
-题号对应课程实验序号，有跳号是正常的。规模都小，全部穷举，无需随机测试。
+当前题库为空。新增题目按下面的步骤放进 `problems/` 即可，`make langs` 会自动看到。
 
 
 ## 新增题目
@@ -84,8 +102,8 @@ sudo apt install iverilog
    ```make
    PID    := p14_mux4
    MODULE := mux4
-   LANG := ../..
-   include $(LANG)/lang.mk
+   LANGDIR := $(dir $(lastword $(MAKEFILE_LIST)))../..
+   include $(LANGDIR)/lang.mk
    ```
 
 2. 写 `<模块名>.v`：固定接口 + `TODO` 空区，注释里写清黄金行为约定；

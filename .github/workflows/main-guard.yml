@@ -1,0 +1,17 @@
+# 守门：main 上一旦出现 harness.c / check.c / check.py 等判分端源码就失败。
+# 防止有人把教师树直接推进学生分支。
+name: main-guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  no-gold-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: reject judge source on student branch
+        run: bash core/judge/main_guard.sh

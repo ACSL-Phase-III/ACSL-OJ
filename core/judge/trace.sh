@@ -28,13 +28,47 @@ in_repo() { git rev-parse --is-inside-work-tree >/dev/null 2>&1; }
 # 学号有效性：未填写（000000/空）时一律静默跳过留痕，只判分。
 valid_stuid() { [ -n "${1:-}" ] && [ "$1" != "000000" ]; }
 
-# 切到 trace 分支（不存在则创建）
-goto_branch() {
-    local br="$1"
-    git switch -c "$br" >/dev/null 2>&1 \
-        || git checkout -b "$br" >/dev/null 2>&1 \
-        || git checkout "$br" >/dev/null 2>&1 \
-        || return 1
+# ===== 留痕怎么落到 trace/<学号> 上：写 ref，不切分支 =====
+# 早先的做法是 git checkout 到 trace 分支再 git commit --allow-empty，问题是**再也没切回来**。
+# 于是学生 make init 之后就一直待在 trace/<学号> 上，而这个分支没有 upstream
+# （trace_push.sh 推的是 refs/heads/x:refs/heads/x，不带 -u），直接后果：
+#
+#     $ git pull
+#     There is no tracking information for the current branch.   → 退出码 1
+#
+# 老师每周日往 main 发新题、学生 git pull 取题的用法就此断掉，而且断在
+# "学生已经开始做题"之后，第一周完全正常，第二周才炸。
+#
+# 现在改用 plumbing：自己造 commit 对象，再把分支 ref 指过去。HEAD 不动，
+# 工作区不动，学生始终留在 main 上。顺带去掉了一个隐患 —— 切分支这个动作本身
+# 会因为工作区有改动而失败（原 goto_branch 返回 1，留痕被静默跳过）。
+#
+# tree 的选法：
+#   有父提交    -> 沿用父提交的 tree。这样 git log 里每次判分都是空提交（无 diff），
+#                  与原行为一致；也不会因为学生 pull 过新题就在留痕历史里冒出一堆
+#                  与判分无关的文件变更。
+#   没有父提交  -> 用当前 HEAD 的 tree（分支的根提交，等价于原先 checkout -b 的效果）。
+trace_commit() {
+    local br="$1" msg_file="$2" parent tree new
+    parent="$(git rev-parse -q --verify "refs/heads/$br" 2>/dev/null || true)"
+
+    if [ -n "$parent" ]; then
+        tree="$(git rev-parse -q --verify "$parent^{tree}" 2>/dev/null || true)"
+    else
+        tree="$(git rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null || true)"
+    fi
+    # 空仓库（一次提交都还没有）：退化成空 tree，留痕仍然成立。
+    [ -n "$tree" ] || tree="$(git hash-object -t tree /dev/null 2>/dev/null || true)"
+    [ -n "$tree" ] || return 1
+
+    if [ -n "$parent" ]; then
+        new="$(git commit-tree "$tree" -p "$parent" -F "$msg_file" 2>/dev/null || true)"
+    else
+        new="$(git commit-tree "$tree" -F "$msg_file" 2>/dev/null || true)"
+    fi
+    [ -n "$new" ] || return 1
+
+    git update-ref "refs/heads/$br" "$new" || return 1
     return 0
 }
 
@@ -62,17 +96,29 @@ init)
         exit 1
     fi
     br="trace/$stuid"
-    if git show-ref -q "refs/heads/$br"; then
-        echo "trace 分支已存在：$br（当前 HEAD 已切换到该分支）"
-        git checkout "$br" >/dev/null 2>&1 || true
+    had="no"
+    git show-ref -q "refs/heads/$br" && had="yes"
+
+    msg="$(mktemp)"
+    printf '[init] trace 初始化 (%s %s) %s\n' "$stuid" "$name" "$(date '+%F %T')" > "$msg"
+    if ! trace_commit "$br" "$msg"; then
+        rm -f "$msg"
+        echo "ERROR: 创建 $br 失败。"
+        exit 1
+    fi
+    rm -f "$msg"
+
+    if [ "$had" = yes ]; then
+        echo "trace 分支已存在：$br（已追加一次 [init] 记录）"
     else
-        goto_branch "$br" || { echo "ERROR: 创建 $br 分支失败。"; exit 1; }
         echo "已创建 trace 分支：$br"
     fi
-    git commit --allow-empty -m "[init] trace 初始化 ($stuid $name) $(date '+%F %T')" >/dev/null 2>&1 || true
-    git log --oneline -3 2>/dev/null | sed 's/^/  /'
+    git log --oneline -3 "$br" 2>/dev/null | sed 's/^/  /'
     maybe_push "$stuid" --verbose
     echo "OK：之后每次 make sim 都会在 $br 上追加一次空提交。"
+    # 明确说一句"你还在原来的分支上"：留痕是后台动作，学生不需要、也不应该被搬到
+    # trace 分支上去 —— 那个分支没有 upstream，站在上面 git pull 取新题会直接失败。
+    echo "    （你当前仍在 $(git rev-parse --abbrev-ref HEAD 2>/dev/null) 分支：留痕只写 $br，不会切走你的工作区）"
     ;;
 
 # -------------------------------------------------------------- commit
@@ -83,7 +129,6 @@ commit)
     [ -s "$results" ] || { echo "(没有判分结论可留痕)"; exit 0; }
 
     br="trace/$stuid"
-    goto_branch "$br" || { echo "trace: 切换 $br 失败，本次不留痕（不影响判分）"; exit 0; }
 
     n="$(wc -l < "$results" | tr -d ' ')"
     msg="$(mktemp)"
@@ -93,7 +138,7 @@ commit)
         sed 's/^/  /' "$results"
     } > "$msg"
 
-    if git commit --allow-empty -F "$msg" >/dev/null 2>&1; then
+    if trace_commit "$br" "$msg"; then
         echo "trace: 已在 $br 留痕（空提交，信息含判分汇总）"
         rm -f "$msg"
         maybe_push "$stuid"

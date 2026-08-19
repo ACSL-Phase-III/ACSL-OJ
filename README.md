@@ -6,7 +6,7 @@
 往 `langs/` 里放一个目录就多一门语言，删掉目录就少一门。
 
 
-## 快速开始
+## 快速开始（学生）
 
 ```bash
 # 1. 填写学员信息（只需填一次，对所有语言生效）
@@ -15,13 +15,51 @@ vim student.mk          # STUID := 你的学号   NAME := 你的姓名
 # 2. 初始化 trace 分支
 make init
 
-# 3. 判分
-make sim                # 判全部语言的全部题目
-make -C langs/c sim     # 只判 C
-make -C langs/c/problems/p01_gcd sim    # 只判某一题
+# 3. 取本周作业的模板到作答区
+make -C work take
+
+# 4. 在 work/<周>/<题号>/ 里写代码，然后判分
+make sim                     # 判全部周
+make -C work/week1 sim       # 只判某一周
+make -C work/week1/p01_class_stat sim   # 只判某一题
 ```
 
-`make help` 看全部用法，`make langs` 看已装载哪些语言模块。
+代码写在 `work/` 里，判分资源留在 `langs/`，两边不在同一个目录 ——
+细节与常见情况见 [`work/README.md`](work/README.md)。
+
+`make help` 看全部用法，`make weeks` 看本学期有哪些周与题目。
+教师出题、发布、学生拉取到交作业的完整流程见 [USAGE.md](USAGE.md)。
+
+## 快速开始（出题人）
+
+```bash
+make sim-langs               # 用题库自带的模板/参考解做全量自测
+make -C langs/c/problems/p01_class_stat sim   # 只自测某一题
+make artifacts               # 把判分件编成要随作业发放的二进制
+make langs                   # 看已装载哪些语言模块、各有几题
+```
+
+根目录 `make sim` 的范围会自动选：有作业周就判作答区（学生常态），
+没有就判题库自身（出题人常态）。两个范围各有一个显式入口：`make work` / `make sim-langs`。
+
+新增题目、session 模式、只发放编译好的判分件、每周怎么发给学生，见
+[`langs/c/AUTHORING.md`](langs/c/AUTHORING.md)；
+新增语言见 [`core/PLUGIN.md`](core/PLUGIN.md)。
+
+
+## 每周发布（教师）
+
+完整逐步说明（出题、挂周、发布、学生拉取、留痕收作业）见 [USAGE.md](USAGE.md)。
+
+```bash
+make teacher-remotes          # 第一次：origin=私有 DEV，public=公开仓
+git add -A && git commit -m "week1: …"
+git push origin HEAD          # 源码进 DEV
+make release                  # 本机编二进制，写本地 main
+git push public main          # 学生快照进公开 ACSL-OJ
+```
+
+学生 clone 公开仓：`git pull` → `make take` → `make sim`。
 
 
 ## 目录结构
@@ -29,24 +67,48 @@ make -C langs/c/problems/p01_gcd sim    # 只判某一题
 ```
 ACSL-OJ/
 ├── README.md          本文件：平台总览（不含语言细节）
-├── Makefile           顶层入口：发现 langs/* 并递归分发
+├── USAGE.md           教师出题发布 + 学生拉取作答的完整流程
+├── Makefile           顶层入口：发现 langs/* 与 work/* 并递归分发
 ├── student.mk         学员信息与云端设置（全平台共用，填一次）
 ├── core/              语言无关的判分核心
-│   ├── engine.mk       判罚链路：风格 -> 编译 -> 运行 -> 解析
+│   ├── engine.mk       单题判罚链路：风格 -> 编译 -> 运行 -> 解析
 │   ├── dispatch.mk     递归分发（平台层与语言层共用同一份逻辑）
+│   ├── week.mk         作答区的"一周"分发层（平铺 / 分拣两种布局）
+│   ├── work.mk         作答区的单题层：把 PROBDIR 指回题库
 │   ├── trace.mk        trace 留痕的 Makefile 侧接线
 │   ├── PLUGIN.md       语言插件契约（新增语言看这里）
 │   └── judge/
 │       ├── verdict.sh   判罚解析（只认判分协议，不认工具链）
+│       ├── take.sh      取模板到作答区（绝不覆盖已有作答）
+│       ├── new_week.sh  新建一周脚手架（make new-week）
+│       ├── release.sh   发布学生可见快照（make release，不切分支）
+│       ├── promote.sh   AC 后在待做区与 done/ 之间搬题
+│       ├── session.py   session 模式的通用会话驱动
 │       ├── trace.sh     留痕：init / commit / log
 │       └── trace_push.sh 云端同步（失败永不影响判分）
-└── langs/             热插拔语言模块
-    ├── c/              C 语言模块       -> langs/c/README.md
-    └── verilog/        Verilog 模块     -> langs/verilog/README.md
+├── langs/             热插拔语言模块（**题库**：题面、判分资源、判据）
+│   ├── c/              C 语言模块       -> langs/c/README.md
+│   │                                      出题看 langs/c/AUTHORING.md
+│   └── verilog/        Verilog 模块     -> langs/verilog/README.md
+└── work/              **作答区**：学生只在这里写代码 -> work/README.md
+    └── week1/          平铺布局的一周（C 语言应用（一））
 ```
 
 **题目内容、工具链、风格规则全在 `langs/<lang>/` 里**，核心只管流程。
-各语言的题目清单、判罚细则、新增题目方法见各自的 `README.md`。
+各语言的题目清单、判罚细则见各自的 `README.md`。
+
+### 题库与作答区是分开的
+
+学生只在 `work/` 里写代码；判分资源（harness / testbench / 测试数据 / 检查器 /
+契约头文件）全部留在 `langs/<语言>/problems/<题号>/`，判分时由 `core/work.mk`
+把 `PROBDIR` 指过去。
+
+这样三件事同时成立：`git pull` 拿新题不会碰到学生的作答文件；出题人改题改判据
+学生侧零操作即生效；作答区里翻不到答案 —— 它从来没被拷进来过。
+
+契约头文件（`func` 模式的 `<模块>.h`）**必须**留在判分端，这是硬约束：
+它被 harness 也 include，学生若能改它，一句 `#define gcd(a,b) gold_gcd(a,b)`
+就让 harness 拿黄金模型和自己对拍，空实现直接 AC。
 
 
 ## 分层设计
@@ -80,6 +142,13 @@ JUDGE-TLE: <说明>                          可选：运行端自己发现超�
 正因为协议是语言无关的，`core/judge/verdict.sh` 能用同一段代码解析
 Verilog 仿真与 C 程序的结果。
 
+协议**写到哪**取决于学生解能不能往判罚输出里插话。学生解产生不了任何输出的语言
+（如只准 `assign` 的组合逻辑 Verilog）直接写运行日志即可；学生解与判分端共享 stdout 的
+语言（C 函数题：两者编进同一个可执行文件）必须走独立通道 `build/proto.log`，
+`verdict.sh` 只认这个文件里的结论，`build/run.log` 只用于给学生看诊断。
+判罚行多于一行也判 RE —— 合法运行只有一个结论。细节与攻击面分析见
+`core/PLUGIN.md` 的"协议往哪写"与 `langs/c/README.md` 的"判罚是怎么防伪造的"。
+
 
 ## 判罚表
 
@@ -106,17 +175,15 @@ Verilog 仿真与 C 程序的结果。
   提交信息即本次判分汇总：
 
   ```
-  [sim] 2026-08-18 10:46:33 判分汇总（共 9 题，范围 all）
-    [p01_gcd] AC (14400/14400 tests)
-    [p03_adder4] AC (512/512 tests)
-    ...
+  [sim] 2026-08-19 10:46:33 判分汇总（共 1 题，范围 week1）
+    [p01_class_stat] AC (15/15 tests)
   ```
 
 - 提交后自动 `git push` 到远端同名分支，老师端 `git fetch` 即可看全班历史，无需收作业；
 - `make trace-log` 看本地与云端对照；`git log trace/<学号> --oneline` 看完整历史。
 
 **恰好留一次痕**：不论 `make sim`（整平台）、`make -C langs/c sim`（单语言）还是
-`make -C langs/c/problems/p01_gcd sim`（单题），都只产生一次提交。
+`make -C langs/c/problems/p01_class_stat sim`（单题），都只产生一次提交。
 中间层把结论往上汇总，只有最外层落一次提交。
 
 未填写 `STUID` 或不在 git 仓库时：只判分、不留痕。

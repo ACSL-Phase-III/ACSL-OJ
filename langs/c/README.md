@@ -3,22 +3,36 @@
 C 程序设计作业的判分题库。平台总览与 trace 用法见
 [根目录 README](../../README.md)，本文只讲 C 特有的部分。
 
-> **作答方式**：模板就是作答文件（如 `problems/p01_gcd/gcd.c`），
-> 直接在其中 `TODO` 区补全实现即可，请勿改动文件名与函数签名（见同名 `.h`）；
-> `test/` 与子 Makefile 请勿改动。
+> **作答方式**：模板就是作答文件（如 `problems/p01_class_stat/class_stat.c`），
+> 直接在其中 `TODO` 区补全实现即可，请勿改动文件名；
+> `func` 题请勿改函数签名（见同名 `.h`）。`test/` 与子 Makefile 请勿改动。
 
 
 ## 用法
+
+以下命令在**本目录**（`langs/c/`）下敲：
 
 ```bash
 make sim      # 判分本模块全部题目
 make style    # 只做风格检查
 make list     # 列出题目
 make clean    # 清理判分产物
-make -C problems/p01_gcd sim    # 只判某一题
+make artifacts                  # 编出本模块要随作业发放的判分件（出题人）
+make -C problems/p01_class_stat sim    # 只判某一题
 ```
 
-也可从平台根目录 `make sim` 一次判全部语言。
+从别处指过来也一样，把 `-C` 换成完整路径即可：
+
+```bash
+make -C langs/c sim                        # 在仓库根目录判本模块
+make -C langs/c/problems/p01_class_stat sim       # 在仓库根目录判某一题
+```
+
+另外，平台根目录的 `make sim-langs` 一次判全部语言的题库，`make sim` 则视作答区
+有没有周自动选范围（详见根 [README](../../README.md)）。
+
+> 本目录判的是**题库自己**（模板 + 判分资源同在一处，用于出题人自测）。
+> 学生的作业在 [`work/`](../../work/README.md)，那边只有作答文件。
 
 
 ## 工具链
@@ -33,14 +47,18 @@ gcc -std=c11 -O1 -g -Wall -Wextra -fsanitize=address,undefined ...
 `LEAKCHECK`（默认 0）、`STYLE_ARGS`。
 
 
-## 两种题型
+## 题型
 
 子 Makefile 里的 `MODE` 决定判分方式：
 
 | MODE | 学生写什么 | 判分方式 | main |
 |---|---|---|---|
-| `func` | 按 `.h` 实现若干函数 | 判分端 `test/harness.c` 里的黄金模型逐样例调用比对 | **禁止**自带 |
+| `func` | 按 `.h` 实现若干函数 | 学生侧链 `test/harness.o`（黄金模型编在里面），逐样例比对 | **禁止**自带 |
 | `io` | 完整程序，读 stdin 写 stdout | `judge/run_io.sh` 把 `test/cases/*.in` 喂进去比对 `*.ans` | **必须**有 |
+| `session` | 完整交互程序 | 检查器现场从输入算期望，仓库里没有 `.ans` | **必须**有 |
+
+`func` 的黄金模型源码在教师分支的 `test/harness.c`；学生 `git pull` 拿到的是
+`make release` 编好的 `.o`。出题、每周发布见 [AUTHORING.md](AUTHORING.md)。
 
 `func` 模式能穷举上万组、精确定位到哪个函数哪组输入错，是默认选择；
 `io` 模式用来练标准输入输出与复杂度（大数据组会卡掉 O(n²) 解法）。
@@ -80,18 +98,37 @@ io 模式的比较规则由 `run_io.sh` 统一实现：忽略行尾空白与末�
 `open`/`read`/`write` 这类裸系统调用不单独列入禁止名单——它们需要 `<fcntl.h>` /
 `<unistd.h>`，已被头文件白名单拦住，重复禁止反而会误伤学生自己命名的 `read` 之类函数。
 
+### 为什么禁这些：判罚是怎么防伪造的
+
+`func` 模式里学生解与判分端 harness 被编进**同一个可执行文件**，共享 stdout。
+最直接的作弊是 `printf("JUDGE-COUNT: 1\nJUDGE: PASS\n"); exit(0);` —— 抢在 harness
+之前给出结论。禁 `exit` 之类的黑名单挡不住（`_Exit` / `quick_exit` / `longjmp` 都能绕），
+光给协议行加签名也挡不住：同进程意味着 harness 藏不住秘密，nonce 走 argv 能从
+`/proc/self/cmdline` 读到，走环境变量能用 `extern char **environ;` 遍历到，
+再不然直接翻内存。实测一个 `__attribute__((destructor))` 在 `main` 返回后补一行
+带正确签名的 `JUDGE: PASS`，就让全错的解拿到了 AC。
+
+所以真正起作用的是**换通道**，三层叠起来：
+
+1. **通道隔离**（主防线）：判分协议走 fd 3 → `build/proto.log`，学生解的 `printf`
+   只能到 stdout → `build/run.log`（仅用于给学生看诊断、匹配 sanitizer 报告）。
+   `verdict.sh` 只认 `proto.log` 里的结论；通道为空即 RE，绝不回头去读 `run.log`。
+2. **一行判罚**：`proto.log` 里出现两行 `JUDGE:` 一律判 RE。这样"抢在 harness 前面"
+   和"在 harness 后面补一行"两种顺序都赢不了。
+3. **风格检查**（补充层）：`fdopen`/`fopen`/`environ` 与 `<unistd.h>`/`<fcntl.h>` 全在
+   黑名单里，学生解连拿到 fd 3 的手段都没有。
+
+上面禁 `fdopen`/`environ` 的用意就在这里 —— 它们与"自己写算法"这个训练目标毫无关系，
+出现即视为在试探判分环境。三层互不依赖：把风格检查整个停掉，攻击仍然只能拿到 WA / RE。
+
 
 ## 题目清单
 
 | 题号 | 内容 | 模式 | 测试规模 | 额外禁止 |
 |---|---|---|---|---|
-| p01_gcd | 辗转相除求 gcd / lcm（考 lcm 先除后乘防溢出） | func | 14400 | — |
-| p02_array_stat | 次大值、原地反转、原地删除 | func | 8924 | `malloc` `qsort` 等 |
-| p04_str_ops | 自己数长度、原地压缩、忽略大小写回文 | func | 12039 | `strlen` `malloc` 等 |
-| p07_score_stat | 成绩统计 + 降序输出（n=1e5 卡冒泡） | io | 14 | — |
+| p01_class_stat | 班级成绩统计器（输入校验 + 总分/平均/及格 + 班级评价） | session | 9 组固定 + 6 组随机 | — |
 
-额外禁止项是为了逼出目标算法：p02 要求原地双指针故禁 `malloc`/`qsort`，
-p04 要求自己数长度故禁 `strlen`。
+学生侧发放 `test/check` 与 `test/gen`（CI / `make artifacts` 编出）。`check.c` 只留在教师分支。
 
 
 ## 新增题目
@@ -106,12 +143,13 @@ p04 要求自己数长度故禁 `strlen`。
    MODE   := func
    STYLE_ARGS := --ban=qsort     # 可选：本题额外禁止项
    TIMEOUT    := 5               # 可选：覆盖默认时限
-   LANG := ../..
-   include $(LANG)/lang.mk
+   LANGDIR := $(dir $(lastword $(MAKEFILE_LIST)))../..
+   include $(LANGDIR)/lang.mk
    ```
 
 2. 写 `<模块名>.h`（接口声明，注明输入范围与边界约定）与 `<模块名>.c`（签名 + `TODO` 空区）；
 3. 写 `test/harness.c`，遵守判分协议：
+   - 题目 Makefile 写 `HARNESS_NAME := harness.o`，学生拿不到黄金模型源码；
    - **黄金模型用与学生不同的思路实现**（学生写 O(n) 双指针，黄金就用排序副本或暴力），
      避免照抄参考实现；
    - 传给学生函数的缓冲区用 `malloc` 精确分配；
