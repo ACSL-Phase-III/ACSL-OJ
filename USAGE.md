@@ -246,16 +246,16 @@ make init
 make take
 
 # 4. 写代码、判分
-cd work/week2/p12_prime
-vim prime.c
+cd work/week2/week2_problem1
+# 只改作答 .c（week5 模拟器不要写 main）
 make sim
 ```
 
 `student.mk` 不被 git 跟踪，老师周日 push 不会覆盖它，
 也不会在 pull 时和全班撞车。
 
-`make take` 只拷模板 `.c` 和一个三行 Makefile 到作答区。
-`prime.h`、`harness.o` 留在 `langs/`，学生用：
+`make take` 会拷作答模板 `.c`、三行 Makefile，以及若存在的 `example_main.c` / `README.md`。
+契约头（`semu.h` / `miniemu.h`）和 `harness.o` 留在 `langs/`，学生用：
 
 ```bash
 make spec          # 只读查看题面和 .h，改不了判分端那份
@@ -278,13 +278,12 @@ make -C work/week3 sim   # 只判新的一周
 
 ```
 work/week2/
-├── Makefile              老师发的，不要改
-├── p12_prime/
-│   ├── Makefile          take 生成的，不要改
-│   ├── prime.c           ← 只改这个
-│   └── build/            判分产物，不用交
-└── p01_gcd/
-    └── gcd.c
+├── Makefile                 老师发的，不要改
+├── week2_problem1/
+│   ├── Makefile             take 生成的，不要改
+│   ├── class_stat.c         ← 只改这个
+│   └── build/               判分产物，不用交
+└── …
 ```
 
 判分范围由你站在哪决定：
@@ -293,7 +292,7 @@ work/week2/
 |---|---|
 | `make sim` | 所有已经 take 过的周 |
 | `make -C work/week2 sim` | 只判 week2 |
-| `make -C work/week2/p12_prime sim` | 只判这一题 |
+| `make -C work/week2/week2_problem1 sim` | 只判这一题 |
 | `make status` | 每题最近一次 AC / WA / CE / … |
 
 C 的 session 题每次现场随机出数据。日志里有 `SEED=…`，要复现某次失败：
@@ -302,8 +301,7 @@ C 的 session 题每次现场随机出数据。日志里有 `SEED=…`，要复�
 make sim SEED=12345
 ```
 
-分拣周（`week5` 那种）多三个动作：AC 会进 `done/`；
-`make verify` 回归已过的题；`make reopen PID=p03_adder4` 拿回来改。
+本学期 week5 是平铺（指令集模拟器），AC 不会自动归档。分拣周（`STAGED := 1` 的 Verilog 大周）才多三个动作：AC 进 `done/`；`make verify` 回归；`make reopen PID=…` 挪回待做区。
 
 想重新取一份干净模板：`make take` 不会覆盖已有文件。
 真要重来，自己先把那个 `.c` 删掉或改名，再 `make take`。
@@ -343,7 +341,7 @@ git log public/trace/2023xxxx --oneline
 | **AC** | 风格过、编译过、测试全过 |
 | **WA** | 结果不对，会给首个 `in= / got= / want=` |
 | **CE** | 编译失败 |
-| **SE** | 用了禁止的语法/函数（`goto`、被禁的 `malloc` 等） |
+| **SE** | 用了禁止的语法/函数（`goto`、`system`、裸 `write`/`open` 等；`malloc` 可用） |
 | **TLE** | 超时 |
 | **RE** | 崩溃或 asan/ubsan（越界、溢出） |
 

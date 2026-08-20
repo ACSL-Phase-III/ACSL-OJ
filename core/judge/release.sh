@@ -151,7 +151,8 @@ if [ "$dry" = "1" ]; then
            langs/*/problems/*/test/check.py \
            langs/*/problems/*/test/gen.c \
            langs/*/problems/*/test/gen.py \
-           langs/*/problems/*/test/ref.c; do
+           langs/*/problems/*/test/ref.c \
+           langs/*/problems/*/test/spec.py; do
     [ -f "$f" ] || continue
     echo "  - $f"
   done
@@ -252,6 +253,17 @@ while IFS= read -r -d '' f; do
   git rm --cached -f --quiet -- "$f"
   stripped=$((stripped + 1))
 done < <(git ls-files -z -- 'langs/*/problems/*/test/ref.c')
+
+# spec.py：func 模拟器题里是完整黄金模型，不发。blackbox 运行器需要它当场算期望，
+# 那种题的 test/ 没有 harness.c / harness.o，留下当检查器。
+while IFS= read -r -d '' f; do
+  dir="$(dirname "$f")"
+  if git ls-files --error-unmatch -- "$dir/harness.c" "$dir/harness.o" >/dev/null 2>&1 \
+     || [ -f "$dir/harness.c" ] || [ -f "$dir/harness.o" ]; then
+    git rm --cached -f --quiet -- "$f"
+    stripped=$((stripped + 1))
+  fi
+done < <(git ls-files -z -- 'langs/*/problems/*/test/spec.py')
 
 # 必带的产物：func 题声明了 harness.o 就必须在快照里。
 missing=0

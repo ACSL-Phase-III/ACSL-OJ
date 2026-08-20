@@ -59,7 +59,9 @@ TESTDIR := $(P)$(TESTDIR)
 #
 # 用 = 延迟展开：$(SAN_EXTRA) 由下面的模式分支设置（blackbox 要关掉几项 UBSan），
 # 而模式分支在本行之后。SAN 本身仍是 ?=，题目照旧可以整体覆盖。
-SAN_EXTRA :=
+# SAN_EXTRA 用 ?=：func 模拟器题也要关 signed-overflow / shift（见 week5），
+# 题目 Makefile 在 include 之前赋值即可；blackbox 分支会再写成同样的值。
+SAN_EXTRA ?=
 # INC_PROB：func 模式下契约头文件（<MODULE>.h）留在题目目录，不发到作答区。
 # 学生的 #include "gcd.h" 在作答目录找不到，就落到这个 -I 上拿到判分端那份。
 #
@@ -121,13 +123,15 @@ ifeq ($(MODE),func)
   # 用 = 延迟展开：SRC 由 core/engine.mk 定义，而 engine.mk 在本文件末尾才 include。
   OBJS         = $(HARNESS) $(SRC)
   EXTRA_NEEDS := $(HARNESS)
-  # 函数题里学生解与 harness 是同一个进程，harness 藏不住任何秘密（argv 可从
-  # /proc/self/cmdline 读到，内存可直接翻）。所以判罚不靠"藏 nonce"，而是换通道：
-  #   fd 3 -> $(PROTO_LOG)：harness 写判分协议，verdict.sh 只认这里的结论
-  #   stdout/stderr -> $(RUN_LOG)：学生解的输出，仅作诊断与 sanitizer 匹配
-  # 学生解要写 fd 3 得用 fdopen/open/write（连同 <unistd.h>/<fcntl.h> 均已被风格检查禁掉）。
-  # nonce 仍经 argv 交给 harness 作第二道签名；env -u 顺手摘掉环境项里的同名变量。
-  RUN_CMD      = env -u JUDGE_NONCE timeout -k 1 $(TIMEOUT) ./$(EXE) "$$JUDGE_NONCE" > $(RUN_LOG) 2>&1 3>> $(PROTO_LOG); rc=$$?
+  # 有 cases/ 的 func 题（week5 模拟器）缺镜像时在 make 期失败，不要运行期假 WA。
+  ifneq ($(wildcard $(TESTDIR)/cases),)
+    EXTRA_NEEDS += $(TESTDIR)/cases
+  endif
+  # 函数题里学生解与 harness 同进程。判罚走 fd 3；nonce **不进 argv/environ**
+  # （/proc/self/cmdline 会泄漏），经管道接到 fd 4，harness 读完即关。
+  # argv[1] 是 cases 目录的绝对路径：不能把教师机 __FILE__ 编进 harness.o。
+  # 4<&0 0</dev/null：nonce 在 fd 4，stdin 换成空，避免学生 scanf 读到。
+  RUN_CMD      = printf '%s' "$$JUDGE_NONCE" | env -u JUDGE_NONCE timeout -k 1 $(TIMEOUT) ./$(EXE) "$(abspath $(TESTDIR)/cases)" 4<&0 0</dev/null > $(RUN_LOG) 2>&1 3>> $(PROTO_LOG); rc=$$?
   MISSING_HINT_$(HARNESS) := 缺少 $(HARNESS)（判分端 harness，不随题目发放），请确认 $(PID)/test/ 存在。
 else ifeq ($(MODE),io)
   # 学生写完整程序，用 cases/*.in 喂 stdin 对拍 *.ans
@@ -172,18 +176,15 @@ else
   # 正确实现判成 RE（例如 add 溢出、shift 到 31 位），所以这两项在本模式关掉；
   # ASan 与其余 UBSan 全部保留 —— 越界访存正是这道题最容易犯的错，必须留着。
   # 讲义要求寄存器与内存用 uint32_t；用 int32_t 的写法在此仍然是自找麻烦。
+  # func 模拟器（week5）在题目 Makefile 里设同样的 SAN_EXTRA，见 ?= 默认值。
   SAN_EXTRA   := -fno-sanitize=signed-integer-overflow,shift
   # 长测 6000 周期 + 逐周期打印，5s 偏紧，默认放宽到 20s。
   # 改的是默认值而不是 TIMEOUT 本身 —— 题目子 Makefile 写 TIMEOUT := 30 仍然优先。
   TIMEOUT_DEFAULT := 20
-  # 运行器尚未实现。不加这道检查的话，MODE := blackbox 会一路走到判分时才因为
-  # "bash: run_blackbox.sh: No such file" 挂掉，报错指向 shell 而不是指向"这个模式
-  # 还没做完"，出题人得自己翻 lang.mk 才明白。宁可在解析期就说清楚。
-  # 上面这套设计（argv 传镜像、构造式生成器倒推答案、关掉两项 UBSan）是想清楚了的，
-  # 缺的只是 run_blackbox.sh —— 补上这个文件本分支即可用。
+  # 运行器缺失时在解析期报错，避免 make sim 走到 bash: No such file。
   ifeq ($(wildcard $(LANGDIR)/judge/run_blackbox.sh),)
-    $(error langs/c: MODE := blackbox 的运行器 judge/run_blackbox.sh 尚未实现，暂不可用。\
-现有可用模式：func / io / session（见 langs/c/AUTHORING.md）)
+    $(error langs/c: 缺少 judge/run_blackbox.sh（MODE := blackbox 的运行器）。\
+现有可用模式：func / io / session / blackbox（见 langs/c/AUTHORING.md）)
   endif
   RUN_CMD      = bash $(LANGDIR)/judge/run_blackbox.sh ./$(EXE) $(TESTDIR) $(TIMEOUT) $(RANDCASES) > $(RUN_LOG) 2>&1 3>> $(PROTO_LOG); rc=$$?
   MISSING_HINT_$(TESTDIR)/spec.py := 缺少 $(TESTDIR)/spec.py（blackbox 模式的镜像生成器 + 判据），请确认 $(PID)/$(TESTDIR)/ 完整。

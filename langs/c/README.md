@@ -56,6 +56,7 @@ gcc -std=c11 -O1 -g -Wall -Wextra -fsanitize=address,undefined ...
 | `func` | 按 `.h` 实现若干函数 | 学生侧链 `test/harness.o`（黄金模型编在里面），逐样例比对 | **禁止**自带 |
 | `io` | 完整程序，读 stdin 写 stdout | `judge/run_io.sh` 把 `test/cases/*.in` 喂进去比对 `*.ans` | **必须**有 |
 | `session` | 完整交互程序 | 检查器现场从输入算期望，仓库里没有 `.ans` | **必须**有 |
+| `blackbox` | 指令集模拟器，`fopen` 读 argv 镜像 | `judge/run_blackbox.sh` 调 `test/spec.py` 对拍终态 | **必须**有 |
 
 `func` 的黄金模型源码在教师分支的 `test/harness.c`；学生 `git pull` 拿到的是
 `make release` 编好的 `.o`。出题、每周发布见 [AUTHORING.md](AUTHORING.md)。
@@ -72,6 +73,10 @@ io 模式的比较规则由 `run_io.sh` 统一实现：忽略行尾空白与末�
 整数溢出、未初始化读等在传统 OJ 上"碰巧过了"的写法，这里直接判 RE 并给出出错行号。
 **这是本模块相对在线 OJ 的主要价值**：把 C 最容易踩的坑当场指出来。
 
+指令集模拟器（`blackbox`，以及 week5 这种 `func` 模拟器）会关掉
+`signed-integer-overflow` 与 `shift` 两项 UBSan：32 位环绕加法是对的，
+不该判 RE。ASan 与其余 UBSan 保留。题目 Makefile 用 `SAN_EXTRA` 控制。
+
 内存泄漏默认不判（`LEAKCHECK=0`），需要时在子 Makefile 里设 `LEAKCHECK=1`。
 
 `func` 模式的 harness 用 `malloc` **精确分配**传给学生函数的缓冲区，越界一格即被抓到。
@@ -83,20 +88,20 @@ io 模式的比较规则由 `run_io.sh` 统一实现：忽略行尾空白与末�
 字符串/字符字面量再匹配，所以 `printf("system(")` 或注释里的关键词不会误伤。
 
 **禁止**：
-- **进程/信号控制**：`system popen fork exec* posix_spawn dlopen signal raise setjmp longjmp atexit abort _exit`
+- **进程/信号控制**：`system popen fork exec* execve posix_spawn dlopen signal raise setjmp longjmp atexit abort _exit _Exit exit quick_exit syscall`
   （不允许学生解创建进程或劫持控制流）；
-- **文件/环境访问**：`fopen freopen fdopen creat openat remove unlink rename rmdir opendir mmap getenv putenv setenv`
-  （只能用参数或 stdin 取数据，不得读写文件绕过判分）；
+- **文件/环境访问**：`fopen freopen fdopen creat openat open read write chmod remove unlink rename rmdir opendir mmap getenv putenv setenv`
+  （只能用参数或 stdin 取数据，不得读写文件绕过判分；`blackbox` 只额外放开 `fopen`）；
 - **不安全函数**：`gets strcpy strcat sprintf vsprintf alloca`（缓冲区溢出风险，用带长度的版本）；
-- `goto`、内联汇编（`asm` / `__asm__`）；
+- `goto`、内联汇编（`asm` / `__asm__`）、`constructor` / `destructor` 属性；
 - 白名单外的头文件。默认白名单：
   `stdio.h stdlib.h string.h math.h limits.h stdbool.h stddef.h stdint.h ctype.h assert.h`
   （`func` 模式自动追加本题的 `<模块名>.h`）；
-- `main`：`func` 模式禁止自带，`io` 模式必须有；
+- `main`：`func` 模式禁止自带，`io` / `session` / `blackbox` 必须有；
 - 各题用 `STYLE_ARGS := --ban=...` 追加的禁止项。
 
-`open`/`read`/`write` 这类裸系统调用不单独列入禁止名单——它们需要 `<fcntl.h>` /
-`<unistd.h>`，已被头文件白名单拦住，重复禁止反而会误伤学生自己命名的 `read` 之类函数。
+`open`/`read`/`write`/`syscall` 按标识符禁止。头文件白名单**不是**系统调用防火墙：
+`extern long write(int, const void *, unsigned long);` 不需要 `<unistd.h>`。
 
 ### 为什么禁这些：判罚是怎么防伪造的
 
@@ -115,8 +120,8 @@ io 模式的比较规则由 `run_io.sh` 统一实现：忽略行尾空白与末�
    `verdict.sh` 只认 `proto.log` 里的结论；通道为空即 RE，绝不回头去读 `run.log`。
 2. **一行判罚**：`proto.log` 里出现两行 `JUDGE:` 一律判 RE。这样"抢在 harness 前面"
    和"在 harness 后面补一行"两种顺序都赢不了。
-3. **风格检查**（补充层）：`fdopen`/`fopen`/`environ` 与 `<unistd.h>`/`<fcntl.h>` 全在
-   黑名单里，学生解连拿到 fd 3 的手段都没有。
+3. **风格检查**（补充层）：`write`/`open`/`syscall`/`exit`/`constructor`/`destructor`
+   按标识符禁止，学生解拿不到往 fd 3 写再提前结束的手段。头文件白名单单独不够。
 
 上面禁 `fdopen`/`environ` 的用意就在这里 —— 它们与"自己写算法"这个训练目标毫无关系，
 出现即视为在试探判分环境。三层互不依赖：把风格检查整个停掉，攻击仍然只能拿到 WA / RE。
@@ -127,6 +132,10 @@ io 模式的比较规则由 `run_io.sh` 统一实现：忽略行尾空白与末�
 | 题号 | 内容 | 模式 | 测试规模 | 额外禁止 |
 |---|---|---|---|---|
 | p01_class_stat | 班级成绩统计器（输入校验 + 总分/平均/及格 + 班级评价） | session | 9 组固定 + 6 组随机 | — |
+| week2_problem1 | 班级成绩统计器（同 p01，边界样例加到 17 组） | session | 17 组固定 + 6 组随机 | — |
+| week3_problem1 | 成绩排序与名次（竞赛排名 + 并列最高分） | session | 15 组固定 + 6 组随机 | — |
+| week5_problem1 | sEMU（sISA 模拟器） | func | 4 组镜像 + 4 组随机 | — |
+| week5_problem2 | miniEMU（minirv 模拟器） | func | 9 组镜像 + 长测 + 随机 | — |
 
 学生侧发放 `test/check` 与 `test/gen`（CI / `make artifacts` 编出）。`check.c` 只留在教师分支。
 

@@ -2,6 +2,10 @@
 build/
 *.vvp
 
+# Python 字节码（CPython 版本相关，不是 session.py / spec.py 的源）
+__pycache__/
+*.py[cod]
+
 # 云端 trace 待补推标记（trace_push.sh 失败时生成）
 .trace-pending
 

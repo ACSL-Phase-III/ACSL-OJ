@@ -17,6 +17,21 @@ hits="$(find langs -type f \( \
     -path 'langs/*/problems/*/test/ref.c' \
   \) 2>/dev/null || true)"
 
+# func 模拟器的 spec.py 是黄金模型（同目录有 harness.c / harness.o）。
+# blackbox 题没有 harness，spec.py 就是运行器要调的检查器，学生分支上该留。
+spec_hits=""
+while IFS= read -r -d '' f; do
+  dir="$(dirname "$f")"
+  if [ -f "$dir/harness.c" ] || [ -f "$dir/harness.o" ]; then
+    spec_hits="$spec_hits$f
+"
+  fi
+done < <(find langs -type f -path 'langs/*/problems/*/test/spec.py' -print0 2>/dev/null || true)
+if [ -n "$spec_hits" ]; then
+  hits="$hits
+$spec_hits"
+fi
+
 if [ -n "$hits" ]; then
     echo "main-guard: 学生分支上出现了判分端源码（这些不该发给学生）：" >&2
     printf '%s\n' "$hits" | sed 's/^/  /' >&2

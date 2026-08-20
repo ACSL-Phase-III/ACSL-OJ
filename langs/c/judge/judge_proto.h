@@ -24,12 +24,13 @@
  * 所以真正的隔离是换通道：协议行写 fd 3（判分端重定向到 build/proto.log），
  * verdict.sh 只认这个文件里的结论；学生解的 printf 只能写到 stdout，
  * 落进 build/run.log，仅用于给学生看诊断与匹配 sanitizer 报告。
- * 学生解要往 fd 3 写就得用 fdopen/open/write（连同 <unistd.h>/<fcntl.h>
- * 都在 style_check.sh 的黑名单里）。nonce 保留为第二道签名。
+ * 学生解要往 fd 3 写就得用 write/open/syscall；style_check.sh 按标识符禁止
+ * 这些调用，并禁止 constructor/destructor 与 exit（extern 声明不需要
+ * <unistd.h>，头文件白名单挡不住）。nonce 保留为第二道签名。
  *
  * ---- 用法 ----
  *     int main(int argc, char **argv) {
- *         judge_init(argc, argv);          // 必须最先调用
+ *         judge_init();                    // 必须最先调用（从 fd 4 读 nonce）
  *         ...
  *         judge_mismatch("in=gcd(%d,%d) got=%d want=%d", a, b, got, want);
  *         judge_count(ntest);
@@ -44,16 +45,26 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-/* 当次运行的 nonce，由 judge_init 从 argv[1] 收下。
- * static 且无外部链接：学生解即使 extern 声明也拿不到这个符号。 */
+/* 当次运行的 nonce。不进 argv/environ：学生解从 /proc/self/cmdline 或 environ
+ * 偷不到。make 把它写在 fd 4 上，judge_init 读完立刻 close(4)。 */
+static char judge_nonce_buf[65];
 static const char *judge_nonce_val = "";
 
-/* 必须在 main 里最先调用。判分端没传 nonce 时留空串，此时 verdict.sh 的严格模式
- * 会判"平台配置错误"，而不是给出一个可疑的 AC。 */
-static inline void judge_init(int argc, char **argv)
+extern long read(int fd, void *buf, unsigned long n);
+extern int close(int fd);
+extern void _exit(int status);
+
+/* 必须在 main 里最先调用。fd 4 读不到时留空串，严格模式不会给可疑的 AC。 */
+static inline void judge_init(void)
 {
-    if (argc > 1 && argv[1] && argv[1][0])
-        judge_nonce_val = argv[1];
+    long n = read(4, judge_nonce_buf, sizeof judge_nonce_buf - 1);
+    close(4);
+    if (n > 0) {
+        while (n > 0 && (judge_nonce_buf[n - 1] == '\n' || judge_nonce_buf[n - 1] == '\r'))
+            n--;
+        judge_nonce_buf[n] = '\0';
+        judge_nonce_val = judge_nonce_buf;
+    }
 }
 
 static inline const char *judge_nonce(void)
@@ -70,17 +81,18 @@ static inline const char *judge_nonce(void)
  * 那时特性宏已经来不及生效了）。 */
 extern FILE *fdopen(int fd, const char *mode);
 
-/* 判分协议的输出流：fd 3。判分端 RUN_CMD 已把它重定向到 build/proto.log。
- * fd 3 没打开时退化到 stdout，便于手工跑 harness 调试。判分链路上不会走到这条
- * 退路：fd 3 总是开着的，而且万一真的退化了，proto.log 为空会被 verdict.sh
- * 判成 RE（判分端配置错误），不会误给 AC。static 变量，学生解拿不到这个符号。 */
+/* 判分协议的输出流：只写 fd 3。被 close(3) 之后绝不能退化到 stdout：
+ * 否则构造函数抢写 proto.log 再关掉 fd 3，harness 的结论进不了通道，
+ * 通道里只剩伪造的 PASS。手工调试请 3>&1 ./harness。 */
 static inline FILE *judge_out(void)
 {
     static FILE *out = NULL;
     if (!out) {
         out = fdopen(3, "w");
-        if (!out)
-            out = stdout;
+        if (!out) {
+            fputs("judge: fd 3 不可写（协议通道被关掉了？）\n", stderr);
+            _exit(2);
+        }
     }
     return out;
 }

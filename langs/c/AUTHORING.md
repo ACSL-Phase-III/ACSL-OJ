@@ -18,7 +18,7 @@ func / io 两种模式的建题步骤已经写在 [README.md 的"新增题目"](
 | `func` | 只补函数体（`.h` 声明的接口） | `test/harness.c` 里的黄金模型现场算 | 没有，但**参考实现**在 harness 源码里 |
 | `io` | 完整程序，读 stdin | `test/cases/*.ans`，预先生成好 | **有** —— 答案就是发放物 |
 | `session` | 完整程序，交互式读写 | `test/check.py`（或二进制）现场从输入算 | 没有 |
-| `blackbox` | 指令集模拟器 | 构造式生成器先定答案再倒推程序 | 没有（**运行器未实现，暂不可用**） |
+| `blackbox` | 指令集模拟器（自带 `main`，`fopen` 读 `.bin`） | `test/spec.py` 从镜像现场算终态 / 逐周期对拍 | 没有（`spec.py` 是检查器，会随题发放） |
 
 选择建议：
 
@@ -29,8 +29,13 @@ func / io 两种模式的建题步骤已经写在 [README.md 的"新增题目"](
   `session`。这是成绩统计器那类作业的正确模式，而不是 `io`。
 - **`io` 只适合输出规格死板、且不介意答案随题发放的题**。
   它的 `.ans` 是明文，`test/ref.c` 还是一份完整参考解 —— 编译解决不了这件事。
-- `blackbox` 目前写 `MODE := blackbox` 会在解析期直接报错，因为
-  `judge/run_blackbox.sh` 还没写。设计意图留在 `lang.mk` 的对应分支里。
+- **指令集模拟器**用 `blackbox`：学生写完整 `./run <image.bin> <max_cycles> [--dump=…]`，
+  运行器是 `judge/run_blackbox.sh`。本题必须 `--allow-fileio`（只放开 `fopen`）。
+  运行器会把 `spec.py` 和镜像快照到临时目录再调，学生 `fopen` 题目目录里的
+  `spec.py` 换不掉检查器。模拟器题也可以走 `func`（week5 就是：学生只实现
+  CPU 函数，黄金模型编进 `harness.o`；那种题的 `spec.py` 不发给学生）。
+  32 位环绕算术会踩 UBSan 的 signed-overflow / shift：`blackbox` 默认关掉这两项；
+  `func` 模拟器在题目 Makefile 里写同一行 `SAN_EXTRA`。
 
 ## session 模式：答案不进仓库
 
@@ -115,6 +120,7 @@ nonce 签名与 fd 3 通道防的是"顺手就能干成"的伪造（`printf("JUD
 | `test/check.py` / `check` | **只有判据**（怎么算对错） | 能，编成二进制 |
 | `test/gen.py` / `gen` | 输入长什么样 | 能，编成二进制 |
 | `test/harness.c` | **一份能直接抄的参考实现** | 能，编成 `harness.o` |
+| `test/spec.py` | func 模拟器题里是**完整黄金模型**；blackbox 是检查器 | func 不发（`make release` 拿掉）；blackbox 要发 |
 | `test/cases/*.ans` | **答案本身** | **不能** |
 | `test/ref.c`（io 模式） | **一份完整参考解** | 不能（它不参与判分，是造数据用的） |
 | `test/tb.v`（Verilog） | 判据（tb 现场算期望值） | 不能，iverilog 必须拿源码编译 |

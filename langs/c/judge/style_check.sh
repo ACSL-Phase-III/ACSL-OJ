@@ -106,7 +106,26 @@ orig_lines() {
 viol="no"
 
 # ---- 检查 1：main 函数（func 模式禁止自带 main，io 模式必须有 main）----
-has_main="$(printf '%s\n' "$stripped" | grep -nE '^[[:space:]]*(int|void)[[:space:]]+main[[:space:]]*\(')"
+# 允许类型与名字分行：int\nmain(void) 是合法 C，不能要求同一行。
+has_main="$(printf '%s\n' "$stripped" | awk '
+    function is_type(s) {
+        return s ~ /^[[:space:]]*((static|extern)[[:space:]]+)?(int|void)[[:space:]]*$/
+    }
+    function is_main(s) {
+        return s ~ /^[[:space:]]*((static|extern)[[:space:]]+)?(int|void)[[:space:]]+main[[:space:]]*\(/ \
+            || s ~ /^[[:space:]]*main[[:space:]]*\(/
+    }
+    {
+        if ($0 ~ /^[[:space:]]*((static|extern)[[:space:]]+)?(int|void)[[:space:]]+main[[:space:]]*\(/) {
+            print NR ":" $0
+            hit=1
+        } else if (prev_type && $0 ~ /^[[:space:]]*main[[:space:]]*\(/) {
+            print NR ":" $0
+            hit=1
+        }
+        prev_type = is_type($0)
+    }
+')"
 case "$main_mode" in
     ban)
         if [ -n "$has_main" ]; then
@@ -125,10 +144,15 @@ esac
 
 # ---- 检查 2：禁止的库调用（绕过判分 / 攻击环境 / 不安全函数）----
 # 分三类给出可读的提示。
-ban_escape='system|popen|fork|vfork|execl|execlp|execle|execv|execvp|execvpe|posix_spawn|dlopen|dlsym|signal|raise|longjmp|setjmp|atexit|_exit|abort'
-# 注意：只列不会与学生自定义函数名撞车的库函数；raw syscall（open/read/write）需要
-# <fcntl.h>/<unistd.h>，已被下面的头文件白名单拦住，故不在此重复禁止 open/read/write。
-ban_fileio='fopen|freopen|fdopen|creat|openat|remove|unlink|rename|rmdir|opendir|mmap|getenv|putenv|setenv'
+#
+# 头文件白名单不是系统调用防火墙：学生可以只写
+#     extern long write(int, const void *, unsigned long);
+# 不 #include <unistd.h> 也能拿到 write/open/read/syscall。func 模式下学生解
+# 与 harness 同进程、fd 3 开着；nonce 走 fd 4（不进 argv），但构造函数能抢在
+# judge_init 的 close(4) 之前 read(4)。所以按标识符出现禁止 write/dprintf/close
+# 和 constructor，不能只配 ident(。
+ban_escape='system|popen|fork|vfork|execl|execlp|execle|execv|execvp|execvpe|execve|posix_spawn|dlopen|dlsym|signal|raise|longjmp|setjmp|atexit|_exit|_Exit|abort|exit|quick_exit|syscall|ptrace'
+ban_fileio='fopen|freopen|fdopen|creat|creat64|openat|open64|open|read|pread64|pread|write|pwrite64|pwrite|writev|dprintf|vdprintf|close|dup3|dup2|dup|fileno|fcntl|ioctl|pipe2|pipe|socketpair|socket|sendmsg|recvmsg|sendfile|mmap|chmod|fchmod|remove|unlink|rename|rmdir|opendir|getenv|putenv|setenv'
 ban_unsafe='gets|strcpy|strcat|sprintf|vsprintf|alloca|scanf_s'
 
 # ---- --allow-fileio：只放开 fopen，其余一律不动 ----
@@ -136,19 +160,22 @@ ban_unsafe='gets|strcpy|strcat|sprintf|vsprintf|alloca|scanf_s'
 # 否则题目根本无法完成。放开的只有 fopen 一个名字：
 #   * freopen 仍禁 —— 它能把 stdout 重定向掉，藏输出等于藏诊断；
 #   * getenv/putenv/setenv 仍禁 —— 那是偷 nonce 的路子，与读镜像无关；
-#   * remove/unlink/rename/rmdir 仍禁 —— 破坏性，且与读镜像无关。
+#   * remove/unlink/rename/rmdir 仍禁 —— 破坏性，且与读镜像无关；
+#   * open/read/write/chmod 仍禁 —— 读镜像用 fopen/fread 即可，裸 syscall 能改检查器。
 # 放开 fopen 会不会让学生写 fopen("build/proto.log","a") 伪造判罚？不会：
 # 判罚行必须带当次 nonce（JUDGE_STRICT=1），而 nonce 既不在 argv 也不在环境里、
 # fd 3 也没继承给学生进程，裸的 JUDGE 行 verdict.sh 一概不认。
 # 若学生改用 "w" 模式把协议通道清空，结论就此缺失 → 判 RE，纯属自伤。
+# 覆盖 testdir/spec.py 本身不需要 nonce：运行器会先把 spec.py 快照到临时目录再调。
 if [ "$allow_fileio" = "yes" ]; then
-    ban_fileio='freopen|fdopen|creat|openat|remove|unlink|rename|rmdir|opendir|mmap|getenv|putenv|setenv'
+    ban_fileio='freopen|fdopen|creat|creat64|openat|open64|open|read|pread64|pread|write|pwrite64|pwrite|writev|dprintf|vdprintf|close|dup3|dup2|dup|fileno|fcntl|ioctl|pipe2|pipe|socketpair|socket|sendmsg|recvmsg|sendfile|mmap|chmod|fchmod|remove|unlink|rename|rmdir|opendir|getenv|putenv|setenv'
 fi
 
 check_group() {
     local pat="$1" msg="$2" hit
-    # 匹配 "标识符 (" 形式的调用；\b 用 -w 近似不够，这里用显式边界
-    hit="$(printf '%s\n' "$stripped" | grep -nE "(^|[^A-Za-z0-9_])($pat)[[:space:]]*\(")"
+    # 按标识符出现拦截，不要只配 ident(：extern long write(...) 再经函数指针
+    # 调用也必须打死。边界避免 fwrite/fopen 误伤 write/open。
+    hit="$(printf '%s\n' "$stripped" | grep -nE "(^|[^A-Za-z0-9_])($pat)([^A-Za-z0-9_]|$)")"
     if [ -n "$hit" ]; then
         echo "STYLE: $msg"
         printf '%s\n' "$hit" | orig_lines
@@ -171,6 +198,16 @@ gotoline="$(printf '%s\n' "$stripped" | grep -nwE 'goto')"
 if [ -n "$gotoline" ]; then
     echo "STYLE: 命中禁止关键字 goto（请用结构化控制流：if / for / while / break / continue）："
     printf '%s\n' "$gotoline" | orig_lines
+    viol="yes"
+fi
+
+# ---- 检查 3.25：constructor / destructor 属性 ----
+# 不是 foo( 形式的调用，check_group 匹配不到 __attribute__((constructor))。
+# func 模式下这种函数在 main / harness 之前跑，能抢写 fd 3 再 exit。
+ctorline="$(printf '%s\n' "$stripped" | grep -nE 'constructor|destructor')"
+if [ -n "$ctorline" ]; then
+    echo "STYLE: 命中 constructor / destructor（禁止在 main 前后挂接代码，判分端自有入口）："
+    printf '%s\n' "$ctorline" | orig_lines
     viol="yes"
 fi
 

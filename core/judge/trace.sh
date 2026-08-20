@@ -116,6 +116,7 @@ init)
     git log --oneline -3 "$br" 2>/dev/null | sed 's/^/  /'
     maybe_push "$stuid" --verbose
     echo "OK：之后每次 make sim 都会在 $br 上追加一次空提交。"
+    bash "$here/welcome.sh" init
     # 明确说一句"你还在原来的分支上"：留痕是后台动作，学生不需要、也不应该被搬到
     # trace 分支上去 —— 那个分支没有 upstream，站在上面 git pull 取新题会直接失败。
     echo "    （你当前仍在 $(git rev-parse --abbrev-ref HEAD 2>/dev/null) 分支：留痕只写 $br，不会切走你的工作区）"

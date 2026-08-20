@@ -56,8 +56,10 @@ else
   echo "  取下 $dest/$src"
 fi
 
-# 题面若单独成文就一起发（判分端目前把题面写在模板注释里，这里做前向兼容）
-for extra in README.md 题面.md; do
+# 题面、本地调试用的 example_main.c 一并拷进作答区。
+# example_main.c 不是判分入口（make sim 仍用 harness 的 main）；只为新生不用
+# 再翻 langs/ 去找「main 长什么样」。已存在的不覆盖。
+for extra in README.md 题面.md example_main.c; do
   if [ -f "$probdir/$extra" ] && [ ! -e "$dest/$extra" ]; then
     cp "$probdir/$extra" "$dest/$extra"
     echo "  取下 $dest/$extra"
@@ -83,7 +85,7 @@ fi
   printf '%s\n' "#     langs/$slug/problems/$pid/"
   printf '%s\n' "# 判分时由 core/work.mk 把 PROBDIR 指到那里，两边解耦。"
   printf '%s\n' "#"
-  printf '%s\n' "# 用法：make sim（判分）/ make style（只查风格）/ make spec（看接口契约）"
+  printf '%s\n' "# 用法：make sim（判分）/ make spec（看接口）/ make example（本地带 main 调试）"
   printf '%s\n' ""
   printf '%s\n' "PID  := $pid"
   if [ -n "$week" ]; then printf '%s\n' "WEEK := $week"; fi

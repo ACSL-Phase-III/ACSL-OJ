@@ -80,8 +80,10 @@ PASS_RUNLOG  = $(if $(RUNLOG),$(RUNLOG),$(OWN_RUNLOG))
 
 TAKE_SH    := bash $(CORE)/judge/take.sh
 PROMOTE_SH := bash $(CORE)/judge/promote.sh
+# 根目录 / work/ 的 take 会设 WELCOME=0，只在最外层打一张欢迎屏。
+WELCOME    ?= 1
 
-.PHONY: sim verify style clean list status take reopen help init
+.PHONY: sim verify style clean list status take reopen help init welcome
 
 # 为什么下面几个"空了怎么办"的分支用 make 层的 ifeq 而不是配方里的 if/exit：
 # 配方每一行是**独立的 shell**，`exit 0` 只结束那一行，make 会继续跑后面几行。
@@ -161,7 +163,8 @@ take:
 	fi; \
 	for p in $$list; do \
 	  $(TAKE_SH) "$(ROOT)" "$(TODO_DIR)" "$$p" "$(DONE_DIR)" "$(WEEK)"; \
-	done
+	done; \
+	if [ "$(WELCOME)" != "0" ]; then bash $(CORE)/judge/welcome.sh take; fi
 
 # ===== reopen：把一题从 done/ 挪回待做区 =====
 # 平铺布局根本没有 done/，reopen 在那里是个无意义的动作 —— 直接说清楚，
@@ -241,6 +244,10 @@ list:
 init:
 	@$(TRACE_SH) init "$(STUID)" "$(NAME)"
 
+KIND ?= init
+welcome:
+	@$(WELCOME_SH) "$(KIND)"
+
 # print-<变量名>：给 work/Makefile 查 PROBLEMS 用（它要知道某题属于哪一周），
 # 顺带方便调试。与 core/engine.mk 里的同名规则同构。
 print-%:
@@ -261,7 +268,8 @@ help:
 	@echo "退出码：make sim 判出 WA 也退 0（判罚是结果，不是故障，结论看输出与 trace）；"
 	@echo "        make verify 有题回归失败则退非 0（它的用途就是回答「还过不过」，要能被脚本读到）。"
 	@echo ""
-	@echo "  make -C <题号> sim    只判一题"
-	@echo "  make -C <题号> spec   看某题的题面与接口契约"
+	@echo "  make -C <题号> sim        只判一题"
+	@echo "  make -C <题号> spec       看某题的题面与接口契约"
+	@echo "  make -C <题号> example    用 example_main.c 本地带 main 调试"
 	@echo ""
 	@echo "判罚：AC 正确 / WA 失配 / CE 编译错 / SE 风格错 / TLE 超时 / RE 运行错"

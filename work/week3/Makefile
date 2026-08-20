@@ -1,10 +1,10 @@
-# work/week1 作答区（平铺）—— C 语言应用（一）：班级成绩统计器
+# work/week3 作答区（平铺）—— C 语言应用：成绩排序与名次
 #
 # 学生：make take 取模板，make sim 判分。本文件随 git pull 发放，请勿改。
 # 教师：改 PROBLEMS 即可增删本周题目。
 
 WEEK     := week3
-PROBLEMS := week3
+PROBLEMS := week3_problem1
 STAGED   := 0
 
 WORK := ../../core

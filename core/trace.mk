@@ -32,7 +32,8 @@ AUTOPUSH     ?= 1
 
 export STUID NAME TRACE_REMOTE AUTOPUSH
 
-TRACE_SH := bash $(CORE)/judge/trace.sh
+TRACE_SH   := bash $(CORE)/judge/trace.sh
+WELCOME_SH := bash $(CORE)/judge/welcome.sh
 
 # ---- 留痕范围标签 ----
 # 分发层（core/dispatch.mk 与各语言模块 Makefile）自己设了 all / c / verilog；

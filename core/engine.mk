@@ -77,7 +77,8 @@ export RE_PATTERN RE_LABEL RE_HEAD MISMATCH_HEAD TIMEOUT
 #
 # 所以真正的隔离是"换通道"：协议行走 fd 3（-> $(PROTO_LOG)），学生解的 printf
 # 只能写到 stdout（-> $(RUN_LOG)，仅作诊断与 RE_PATTERN 匹配用）。学生解要往 fd 3
-# 写就得用 fdopen/open/write，这些连同 <unistd.h>/<fcntl.h> 都在风格检查的黑名单里。
+# 写就得用 write/open/syscall；风格检查按标识符禁止这些调用，并禁止
+# constructor/destructor 与 exit。头文件白名单挡不住 extern 声明。
 # nonce 保留为第二道防线，并规定合法运行只能有一行判罚：出现两行即判定被篡改，
 # 这样"抢在前面"和"补在后面"两种顺序都赢不了。
 #
@@ -103,7 +104,12 @@ include $(CORE)/trace.mk
 # 之前被 include —— 不写这行，裸 `make` 会变成 `make trace-push`（一次联网推送）。
 .DEFAULT_GOAL := sim
 
-.PHONY: sim style clean mkbuild
+.PHONY: sim style clean mkbuild example example-run
+
+# 题目 Makefile 可设 EXAMPLE_BIN / EXAMPLE_CYCLES，供 make example 打印试跑命令。
+# $(P) 在作答区是题库绝对路径前缀，镜像仍放 langs/，学生不必手找。
+EXAMPLE_BIN    ?=
+EXAMPLE_CYCLES ?= 20
 
 # ===== artifacts：作答区拦截 =====
 # artifacts 是**出题人**的命令（重编要发放的判分件）。但经 include 链
@@ -149,6 +155,31 @@ sim: mkbuild $(SRC) $(EXTRA_NEEDS)
 # ===== style：只做风格检查 =====
 style: mkbuild $(SRC)
 	@$(STYLE_CMD) && echo "[$(PID)] style OK"
+
+# ===== example：用 example_main.c 在本地带 main 跑（不走 make sim）=====
+# 新生要看「main 怎么调我的函数」时用这个。作答文件里仍然不能写 main，
+# 否则 make sim 会 SE。example_main.c 由 make take 拷进作答目录。
+example: mkbuild $(SRC)
+	@if [ ! -f example_main.c ]; then \
+	  echo "本题没有 example_main.c（make take 只会在题库提供了它时拷过来）。"; \
+	  echo "判分请 make sim。"; \
+	  exit 1; \
+	fi
+	gcc $(CFLAGS) -o $(BUILD)/example example_main.c $(SRC) $(LDLIBS)
+	@echo "已生成 $(BUILD)/example"
+	@if [ -n "$(EXAMPLE_BIN)" ]; then \
+	  echo "试跑： ./$(BUILD)/example $(EXAMPLE_BIN) $(EXAMPLE_CYCLES)"; \
+	  echo "或    make example-run"; \
+	else \
+	  echo "用法： ./$(BUILD)/example <镜像.bin> <周期数>"; \
+	fi
+
+example-run: example
+	@if [ -z "$(EXAMPLE_BIN)" ]; then \
+	  echo "本题没设 EXAMPLE_BIN，请自己： ./$(BUILD)/example <镜像.bin> <周期数>"; \
+	  exit 1; \
+	fi
+	./$(BUILD)/example $(EXAMPLE_BIN) $(EXAMPLE_CYCLES)
 
 mkbuild:
 	@mkdir -p $(BUILD)

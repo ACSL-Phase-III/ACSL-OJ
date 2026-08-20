@@ -34,11 +34,15 @@ OWN_RUNLOG := $(abspath $(BUILD)/sim-run.txt)
 # 往下传递的汇总文件：上层给了就用上层的，否则用自己的
 PASS_RUNLOG = $(if $(RUNLOG),$(RUNLOG),$(OWN_RUNLOG))
 
-.PHONY: sim style clean init help list artifacts
+.PHONY: sim style clean init welcome help list artifacts
 
 # ===== sim：递归判分 =====
+# 空 SUBDIRS 不算失败：语言模块可以先挂上 lang.mk、题库还是空的（现在的
+# langs/verilog 就是）。跟 core/week.mk 待做区为空、以及下面 artifacts
+# 空 ARTIFACT_DIRS 同一条政策 —— 否则 make sim-langs 判完 C 会在 Verilog
+# 上空列表退 2，整次全量自测中断。
 sim:
-	@if [ -z "$(SUBDIRS)" ]; then echo "没有找到任何$(SUBDIR_KIND)"; exit 1; fi
+	@if [ -z "$(SUBDIRS)" ]; then echo "没有找到任何$(SUBDIR_KIND)，跳过。"; exit 0; fi
 	@$(if $(RUNLOG),:,mkdir -p $(BUILD) && rm -f $(OWN_RUNLOG))
 	@for d in $(SUBDIRS); do \
 	  echo "===== [$$d] ====="; \
@@ -49,7 +53,7 @@ sim:
 
 # ===== style：递归风格检查 =====
 style:
-	@if [ -z "$(SUBDIRS)" ]; then echo "没有找到任何$(SUBDIR_KIND)"; exit 1; fi
+	@if [ -z "$(SUBDIRS)" ]; then echo "没有找到任何$(SUBDIR_KIND)，跳过。"; exit 0; fi
 	@for d in $(SUBDIRS); do \
 	  echo "===== [$$d] ====="; \
 	  $(MAKE) -s -C $$d style || exit 1; \
@@ -77,6 +81,14 @@ artifacts:
 # ===== init：初始化 trace 分支（各层等价，都作用于同一个仓库）=====
 init:
 	@$(TRACE_SH) init "$(STUID)" "$(NAME)"
+
+# ===== welcome：只打欢迎屏，方便本机看效果 =====
+# 默认就是 make init 那一张。KIND=take 看取题时那张；KIND=preview 两张都打。
+# 不改 git、不取题、不要求已填学号（没填则显示 Guest）。
+# 指定身份：make welcome STUID=211220042 NAME=张三
+KIND ?= init
+welcome:
+	@$(WELCOME_SH) "$(KIND)"
 
 list:
 	@for d in $(SUBDIRS); do echo "  $$d"; done

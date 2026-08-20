@@ -69,10 +69,10 @@ take:
 	for d in $(SUBDIRS); do \
 	  if [ -n "$(PID)" ]; then \
 	    if $(MAKE) -s -C $$d print-PROBLEMS | tr ' ' '\n' | grep -qx "$(PID)"; then \
-	      echo "===== [$$d] ====="; $(MAKE) -s -C $$d take PID="$(PID)"; hit=1; \
+	      echo "===== [$$d] ====="; $(MAKE) -s -C $$d take PID="$(PID)" WELCOME=0; hit=1; \
 	    fi; \
 	  else \
-	    echo "===== [$$d] ====="; $(MAKE) -s -C $$d take; hit=1; \
+	    echo "===== [$$d] ====="; $(MAKE) -s -C $$d take WELCOME=0; hit=1; \
 	  fi; \
 	done; \
 	if [ "$$hit" = 0 ]; then \
@@ -81,7 +81,8 @@ take:
 	  $(MAKE) -s weeks | sed 's/^/    /'; \
 	  echo "（题库里全部题号：make -C .. langs 看各语言，或 ls ../langs/*/problems/）"; \
 	  exit 1; \
-	fi
+	fi; \
+	bash $(CORE)/judge/welcome.sh take
 
 # ===== verify：重判各周 done/（回归）=====
 # 一周失败不吞掉：整条命令的退出码要反映"有周没过"，否则脚本化使用时看不出问题。

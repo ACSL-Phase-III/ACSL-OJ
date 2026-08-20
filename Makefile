@@ -135,6 +135,7 @@ help:
 	@echo ""
 	@echo "第一次使用：在 student.mk 填写 STUID / NAME，然后 make init"
 	@echo ""
+	@echo "  make welcome      预览欢迎屏（不改 git、不取题；KIND=take 看取题那张）"
 	@echo "  make take         取本周作业的模板到作答区（make take PID=<题号> 只取一题）"
 	@echo "  make sim          判分 —— 本次范围：$(SIM_SCOPE)"
 	@echo "  make status       作答区每题的状态与最近一次判罚"
@@ -145,7 +146,7 @@ help:
 	@echo "  make artifacts         编出要随作业发放的判分件（出题人）"
 	@echo "  make teacher-remotes   第一次：origin=私有 DEV，public=公开 ACSL-OJ"
 	@echo "  make release           本机编二进制、写本地 main（PUSH=1 则推 public）"
-	@echo "  make new-week WEEK=week2 PROBLEMS='p12_x p13_y'   新建一周脚手架
+	@echo "  make new-week WEEK=week2 PROBLEMS='p12_x p13_y'   新建一周脚手架"
 	@echo "  make style        风格检查（范围同 make sim）"
 	@echo "  make clean        清理判分产物"
 	@echo "  make langs        列出已装载的语言模块"
