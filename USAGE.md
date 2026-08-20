@@ -227,19 +227,30 @@ make sim
 
 环境：Linux 或 WSL（Windows 不要用原生 cmd / PowerShell）。
 需要 `bash`、`make`、`git`、`gcc`（带 asan）。Verilog 周再装 `iverilog`。
+HTTPS clone 再装 [`gh`](https://cli.github.com/)（`gh auth login` 用）。
+
+**不要 fork，不要 New repository。** 全班共用公开仓 `ACSL-Phase-III/ACSL-OJ`。
+`make sim` 只往这个仓库推一条 `trace/<学号>` 分支（空提交，不含代码），老师 `make traces` 就能看。
 
 ```bash
-git clone git@github.com:ACSL-Phase-III/ACSL-OJ.git
+# 0. 登录 GitHub（只需一次；让 git push 用你的账号，不是建新仓库）
+gh auth login          # GitHub.com → HTTPS → 浏览器登录
+gh auth setup-git
+
+git clone https://github.com/ACSL-Phase-III/ACSL-OJ.git
 cd ACSL-OJ
-# 默认就是 main，对，别 checkout teacher
+# 默认就是 main，对，别 checkout teacher / acsl-oj
 ```
+
+已经习惯 SSH 的可以继续 `git clone git@github.com:ACSL-Phase-III/ACSL-OJ.git`，
+并把自己的 SSH pubkey 加到 GitHub；效果相同，仍然 clone 这一个仓。
 
 ```bash
 # 1. 填学号姓名（只需一次）
 #    第一次跑 make 时，平台会从 student.mk.example 自动拷一份 student.mk
 vim student.mk              # STUID := 2023xxxx   NAME := 张三
 
-# 2. 建自己的判分留痕分支
+# 2. 建自己的判分留痕分支（会 push 到公开仓的 trace/<学号>，不是新仓库）
 make init
 
 # 3. 取当前所有已发布周的模板
@@ -319,18 +330,33 @@ make sim SEED=12345
   [p01_gcd] WA (12/14400 组失配)
 ```
 
-填了学号且在 git 仓库里，才会留痕；之后自动 `git push` 到远端同名分支。
+填了学号且在 git 仓库里，才会留痕；之后自动 `git push origin trace/<学号>`
+到**同一个公开仓**（学生的 `origin` 就是 ACSL-OJ）。
 推失败不影响判分，下次会补推，也可 `make trace-push` 手动补。
 `make sim AUTOPUSH=0` 本次只在本地留痕。
 
-教师收作业，不用收文件：
+### 教师：让学生推得上来（学期初一次）
+
+学生没有自己的作业仓库。要把全班加成公开仓的 **write**，同时锁死 `main`：
+
+1. GitHub 组织里建 team（例如 `acsl-students`），把学生 GitHub 账号加进去。
+2. 给这个 team 对 **ACSL-OJ**（公开仓，不是 DEV）Write 权限。
+3. 在 ACSL-OJ 开 Ruleset / Branch protection：`main` 只允许管理员推送，禁止 force push、禁止删分支。
+   学生就只能推 `trace/<学号>`，改不了题、盖不了 `main`。
+
+不加 write 的话，学生本机可以 AC，你这边 `make traces` 永远是空的。
+不要改成「每人 fork 一个仓」——平台不按 fork 收作业。
+
+### 教师：看全班 trace
+
+在教师自己的 DEV 工作树（有 `public` 这个 remote）里：
 
 ```bash
-git fetch public
-git log public/trace/2023xxxx --oneline
+make traces                     # 列出公开仓上所有 trace/<学号>
+make traces STUID=2025009489    # 只看这一个人的判分历史
 ```
 
-看的是「他哪一次交的、当时过没过」，不是最终磁盘上那一份。
+看的是「他哪一次 `make sim`、当时过没过」，不是磁盘上那份 `.c`。
 
 ---
 
@@ -373,7 +399,7 @@ git remote add origin git@github.com:ACSL-Phase-III/ACSL-OJ.git   # 仅当 remot
 make trace-push
 ```
 
-题目目录不要 `git init`。`make sim` 就是交作业。
+题目目录不要 `git init`。不要 `gh repo create` / fork。`make sim` 就是交作业。
 
 **学生去翻 `langs/…/test/` 想抄答案。**
 在 `main` 上 func 题只有 `harness.o`，抄不到 C 源码。

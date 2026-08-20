@@ -53,10 +53,15 @@ else \
 fi
 endef
 
-.PHONY: trace-push trace-log
+.PHONY: trace-push trace-log traces
 
 trace-push:
 	@bash $(CORE)/judge/trace_push.sh "$(TRACE_REMOTE)" "$(STUID)" --verbose
 
 trace-log:
 	@$(TRACE_SH) log "$(STUID)"
+
+# 教师：从公开仓抓全班 trace/*。STUID 有效时只看一个人。
+PUBLIC_REMOTE ?= public
+traces:
+	@bash $(CORE)/judge/traces.sh "$(PUBLIC_REMOTE)" "$(STUID)"

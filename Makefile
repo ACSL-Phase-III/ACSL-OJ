@@ -153,6 +153,7 @@ help:
 	@echo "  make weeks        列出作答区的周与题目"
 	@echo "  make trace-push   手动把 trace 分支同步到云端（离线补推）"
 	@echo "  make trace-log    查看本地与云端的判分历史对照"
+	@echo "  make traces       教师：从公开仓抓全班 trace/*（STUID=学号 看一人）"
 	@echo ""
 	@echo "学生（在作答区做作业）："
 	@echo "  make -C work take                    取下所有周的题目模板"

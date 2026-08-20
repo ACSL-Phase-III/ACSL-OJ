@@ -8,6 +8,9 @@
 
 ## 快速开始（学生）
 
+不要 fork、不要新建仓库。clone 公开仓 `ACSL-Phase-III/ACSL-OJ`，`make sim` 会把
+`trace/<学号>` 推回这个仓。HTTPS 先 `gh auth login`（只需一次）。
+
 ```bash
 # 1. 填写学员信息（只需填一次，对所有语言生效）
 vim student.mk          # STUID := 你的学号   NAME := 你的姓名
