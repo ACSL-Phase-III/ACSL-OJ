@@ -3,8 +3,8 @@
 # 学生：make take 取模板，make sim 判分。本文件随 git pull 发放，请勿改。
 # 教师：改 PROBLEMS 即可增删本周题目。
 
-WEEK     := week1
-PROBLEMS := week1 
+WEEK     := week4-5
+PROBLEMS := week4-5
 STAGED   := 0
 
 WORK := ../../core

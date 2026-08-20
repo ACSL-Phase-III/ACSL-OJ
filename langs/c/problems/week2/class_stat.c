@@ -55,10 +55,3 @@
 #include <stdio.h>
 
 // ===== TODO: 在此完成你的设计 =====
-
-int main(void)
-{
-    return 0;
-}
-
-// ===== END =====

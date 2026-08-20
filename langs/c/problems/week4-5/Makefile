@@ -3,7 +3,7 @@
 # 模板即 class_stat.c：自己写 main，从标准输入读数据、往标准输出打结果。
 # test/ 只放检查器与生成器（没有答案明文）；本 Makefile 请勿改动。
 
-PID    := p01_class_stat
+PID    := week4-5_test
 MODULE := class_stat
 MODE   := session
 
