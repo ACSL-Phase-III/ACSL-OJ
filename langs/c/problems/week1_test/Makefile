@@ -4,7 +4,7 @@
 # test/ 只放检查器与生成器（没有答案明文）；本 Makefile 请勿改动。
 
 PID    := week1_test
-MODULE := class_1
+MODULE := class_stat
 MODE   := session
 
 # 每次判分现场生成的随机组。把样例输出写死的假解会在这里穿帮。

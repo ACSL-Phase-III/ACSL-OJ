@@ -4,7 +4,7 @@
 # 教师：改 PROBLEMS 即可增删本周题目。
 
 WEEK     := week1
-PROBLEMS := p01_class_stat
+PROBLEMS := p01_class_stat week1_test
 STAGED   := 0
 
 WORK := ../../core
