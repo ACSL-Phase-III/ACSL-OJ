@@ -1,0 +1,35 @@
+# 判分产物
+build/
+*.vvp
+
+# 云端 trace 待补推标记（trace_push.sh 失败时生成）
+.trace-pending
+
+# ===== 学员信息 =====
+# student.mk 每个学生都要改（写自己的学号姓名），所以它不能是被跟踪的文件：
+# 老师哪天动一下这个文件，全班 git pull 就一起撞
+# 「Your local changes would be overwritten by merge」，卡在取新题这一步。
+# 仓库里跟踪的是 student.mk.example，学生 make init 时按需生成自己那份。
+student.mk
+
+# ===== 作答目录 =====
+# 逐周发布模型（老师每周日往 main 推新题、学生 git pull）下，
+# work/ 里必须严格区分两种东西：
+#
+#   老师写的脚手架   work/Makefile、work/<周>/Makefile   -> 跟踪，随 pull 发放
+#   学生的作答目录   work/<周>/<题号>/                    -> 不跟踪
+#
+# 后者一旦进了 git，每周日的 pull 就会拿学生**正在写的代码**去和老师仓库做合并 ——
+# 这是整个模型里最容易出事的一处，而且症状出现在学期中途（第一周永远是好的）。
+# 作答目录本来也不需要跟踪：它由 make take 从题库现取，Makefile 每次重新生成，
+# 作答文件 take.sh 绝不覆盖。
+#
+# 写法说明：先排除 work/ 下所有层级，再逐条放行脚手架。
+# 放行目录（!work/*/problem/）必须写在放行它里面的文件之前 ——
+# 被排除的目录 git 根本不会进去看，里面的放行规则不会生效。
+work/*/**
+!work/*/Makefile
+!work/*/README.md
+!work/*/problem/
+!work/*/problem/Makefile
+!work/*/problem/README.md
