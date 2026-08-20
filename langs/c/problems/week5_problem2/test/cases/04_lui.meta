@@ -1,0 +1,4 @@
+cycles=10
+dump=final
+pc=0xc
+a0=0x1001

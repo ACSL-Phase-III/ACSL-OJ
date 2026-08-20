@@ -1,0 +1,5 @@
+cycles=6000
+dump=final
+pc_min=0x224
+pc_max=0x228
+a0=0
