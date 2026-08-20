@@ -196,7 +196,7 @@ Verilog 仿真与 C 程序的结果。
 | 情形 | 行为 |
 |---|---|
 | 离线 / 域名解析失败 | 提示"当前离线，已记录待同步"，联网后自动补推 |
-| 未配置远端 | 提示 `git remote add origin <地址>` 的配置方法 |
+| 未配置远端 | 说明不影响 AC，并给出在仓库根 `git remote -v` / 补公开仓的做法（忽略题目目录里的嵌套 `.git`） |
 | 无凭据 / 无权限 | 提示先 `gh auth login` 或配置 SSH key |
 | 云端历史不一致 | 提示 non-fast-forward，**不会**自动覆盖，需人工核对 |
 | 卡住 | `timeout` 20s 强制结束，`GIT_TERMINAL_PROMPT=0` 保证不停在密码输入 |

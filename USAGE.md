@@ -361,6 +361,20 @@ git log public/trace/2023xxxx --oneline
 **只 push 了 DEV，忘了 `git push public main`。**
 学生 `git pull` 什么都没有。
 
+**`make sim` 已经 AC，后面却提示「未配置远端 origin」。**
+判分过了，只是 trace 没推上云端。常见原因是学生在题目目录里
+`git init` 交作业，make 认错了那份没有 remote 的 `.git`。
+让他在 **ACSL-OJ 仓库根**（有 `Makefile`、`langs/`、`work/` 的那一层）执行：
+
+```bash
+git remote -v
+ls -a work/week1/p01_class_stat/.git   # 有的话删掉这个嵌套仓库：rm -rf work/week1/p01_class_stat/.git
+git remote add origin git@github.com:ACSL-Phase-III/ACSL-OJ.git   # 仅当 remote -v 为空
+make trace-push
+```
+
+题目目录不要 `git init`。`make sim` 就是交作业。
+
 **学生去翻 `langs/…/test/` 想抄答案。**
 在 `main` 上 func 题只有 `harness.o`，抄不到 C 源码。
 `io` 题的 `.ans` 仍然是明文——那种题别当保密作业。
