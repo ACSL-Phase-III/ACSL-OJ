@@ -71,7 +71,7 @@ include $(LANGDIR)/lang.mk
 
 ## 每周发布（教师 → GitHub → 学生 pull）
 
-完整逐步流程（出题、挂周、发布、学生拉取、收作业）见仓库根目录 [USAGE.md](../../USAGE.md)。
+完整逐步流程（出题、挂周、发布、学生拉取、收作业）见仓库根目录 [README.md](../../README.md)。
 
 方案 1：私有 **ACSL-OJ-DEV** 留源码，公开 **ACSL-OJ** 只收本机编好的二进制。
 学生 clone 公开仓，进不去 DEV。

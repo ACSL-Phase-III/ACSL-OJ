@@ -115,7 +115,7 @@ $ make new-week WEEK=week6 PROBLEMS='p03_adder4 p04_cmp_eq4' STAGED=1
 题号必须已经在 `langs/*/problems/` 里。建好后学生还看不到 —— 要 `make release`
 再 `git push public main`（学生快照进公开仓；源码只进私有 DEV），
 学生 `git pull && make take` 才取得到。
-完整流程见仓库根目录 [USAGE.md](../USAGE.md) 和
+完整流程见仓库根目录 [README.md](../README.md) 和
 [`langs/c/AUTHORING.md`](../langs/c/AUTHORING.md)。
 
 也可以自己写 `work/<周名>/Makefile`：声明周名与题号，就被自动发现 ——

@@ -88,7 +88,10 @@ export GIT_TERMINAL_PROMPT=0
 export GIT_ASKPASS=/bin/true
 export SSH_ASKPASS=/bin/true
 
-log="$(timeout -k 2 "$PUSH_TIMEOUT" g push "$remote" "refs/heads/$branch:refs/heads/$branch" 2>&1)"
+# timeout 按 PATH 找可执行文件，看不见上面的 shell 函数 g()。
+# 写成 `timeout … g push` 会变成「timeout: failed to run command 'g'」（退出码 127），
+# 判分结束后学生看到推送失败、留下 .trace-pending，其实 git 根本没被调用。
+log="$(timeout -k 2 "$PUSH_TIMEOUT" git -C "$platroot" push "$remote" "refs/heads/$branch:refs/heads/$branch" 2>&1)"
 rc=$?
 
 if [ "$rc" -eq 0 ]; then

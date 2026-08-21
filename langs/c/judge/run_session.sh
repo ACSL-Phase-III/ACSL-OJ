@@ -62,6 +62,33 @@ tool_path() {
     esac
 }
 
+# Windows 共享盘 / zip / git 以 100644 入库，都会让预编译 check/gen 丢掉 +x。
+# 判分时自己补上，不要让学生 chmod。原文件 chmod 失败（只读、NTFS 无 metadata）
+# 就拷到临时目录再赋权。
+ensure_exec() {
+    local src="$1" copy
+    if [ -x "$src" ]; then
+        printf '%s' "$src"
+        return 0
+    fi
+    chmod +x "$src" 2>/dev/null || true
+    if [ -x "$src" ]; then
+        printf '%s' "$src"
+        return 0
+    fi
+    copy="$work/$(basename "$src")"
+    if ! cp "$src" "$copy" 2>/dev/null; then
+        echo "run_session: 无法读取 $src" >&2
+        return 1
+    fi
+    chmod +x "$copy" 2>/dev/null || true
+    if [ ! -x "$copy" ]; then
+        echo "run_session: $src 没有可执行位，当前文件系统也不允许补上。" >&2
+        return 1
+    fi
+    printf '%s' "$copy"
+}
+
 # resolve_tool <命令串> <人类可读的名字>
 #   成功时把可直接执行的命令写进全局数组 tool_argv；失败即出题端 bug，exit 2。
 tool_argv=()
@@ -87,13 +114,12 @@ resolve_tool() {
             tool_argv=( "$PY" "$path" )
             ;;
         *)
-            if [ ! -x "$path" ]; then
-                echo "run_session: $what $path 存在但没有可执行位。" >&2
-                echo "             预编译判分件经 Windows 共享盘或打包分发常会丢掉 +x，补上即可：" >&2
-                echo "                 chmod +x $path" >&2
+            local runnable orig="$path"
+            runnable="$(ensure_exec "$orig")" || {
+                echo "run_session: $what $orig 存在但无法执行（预编译判分件丢掉了 +x，自动补权失败）。" >&2
                 exit 2
-            fi
-            tool_argv=( "$path" )
+            }
+            tool_argv=( "$runnable" )
             ;;
     esac
     if [ "${#words[@]}" -gt 1 ]; then
@@ -101,14 +127,14 @@ resolve_tool() {
     fi
 }
 
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
 resolve_tool "$CHECKER" "检查器"
 CHK_ARGV=( "${tool_argv[@]}" )
 
 # 生成器按需解析（RANDCASES=0 时不需要它存在），这里只先算出路径供存在性判断。
 gen="$(tool_path "$GEN")"
-
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
 
 total=0
 fail=0

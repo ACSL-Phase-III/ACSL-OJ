@@ -209,6 +209,13 @@ for f in langs/*/problems/*/test/harness.o \
   git add -f -- "$f"
 done
 
+# core.filemode=false（Windows / 部分 WSL 挂载）时 git add 不看工作区 +x，
+# 空索引收进来的 check/gen 会变成 100644。学生在 Linux 上 pull 就没有执行位。
+# run_session 能补权，但快照自己就该是 100755。
+while IFS= read -r -d '' f; do
+  git update-index --chmod=+x -- "$f"
+done < <(git ls-files -z -- 'langs/*/problems/*/test/check' 'langs/*/problems/*/test/gen')
+
 stripped=0
 kept_src=0
 

@@ -279,6 +279,7 @@ artifacts:
 	    $(CHECKER_CC) $(CHECKER_CFLAGS) -I$(LANGDIR)/judge -c -o "$$out" "$$src" || exit 1; \
 	  else \
 	    $(CHECKER_CC) $(CHECKER_CFLAGS) -o "$$out" "$$src" || exit 1; \
+	    chmod +x "$$out"; \
 	  fi; \
 	  echo "已生成 $$out（源码 $$src 留在判分端，不发放）"; \
 	  built=$$((built + 1)); \
